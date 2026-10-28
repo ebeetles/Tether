@@ -1,8 +1,8 @@
 # Tetherline
 
-Third-person momentum parkour with a grappling hook. See [the design spec](Tetherline%20—%20Game%20Design%20Spec.md).
+Third-person momentum parkour-fighting with a grappling hook and a sword. See [the design spec](Tetherline%20—%20Game%20Design%20Spec.md) for the design and [HANDOFF.md](HANDOFF.md) for what's left to build.
 
-This is milestones 0–2 of the spec: engine foundations, the movement prototype and the grapple prototype. The test room is dressed as a medieval castle courtyard at sunset. TypeScript in the browser; Three.js is used only to render. The game loop, collision, physics, input and audio are our own code.
+This is milestones 0–2 of the spec: engine foundations, the movement prototype and the grapple prototype. Sword combat and enemies are designed in the spec (milestone 3) but not built yet. The test room is dressed as a medieval castle courtyard at sunset. TypeScript in the browser; Three.js is used only to render. The game loop, collision, physics, input and audio are our own code.
 
 ```bash
 npm install
@@ -59,6 +59,15 @@ Levels can carry `decor` (scenery the simulation ignores: roofs, banners, torche
 - **Step-ups.** Obstacles up to 0.45 m are stepped over automatically, and taller ones up to 1.2 m are vaulted. The spec's 0.6 m vault minimum would otherwise leave a 0.45–0.6 m band that just blocks you.
 - **Crouch key.** C as well as Left Ctrl, because Ctrl+W closes the tab on Windows and Linux. While the mouse is captured, leaving the page asks for confirmation.
 
+## Where it's headed
+
+Next comes combat built on the movement rather than beside it:
+- Hits scale with speed, and every movement state has an attack form: aerial slashes that hop you to the next enemy, a plunge that turns fall height into damage, and a strike at the bottom of a swing.
+- The hook pulls light enemies, pulls you to heavy ones, and rips shields away.
+- Enemies (archers, spearmen, shield-bearers, hounds, knights, ballista crews and a boss) sit along routes instead of in closed arenas.
+
+The spec's Combat section has the numbers. HANDOFF.md section 5 has the implementation plan and the open questions.
+
 ## Not built yet
 
-Ledge-grab and wall-climb animations, flow score, ghosts and time trial, the level editor, rope wrapping, air dash and dual hook (later unlocks), and real art and audio.
+Sword combat and enemies, ledge-grab and wall-climb animations, flow score, ghosts and time trial, the level editor, rope wrapping, air dash and dual hook (later unlocks), and real character art and audio.

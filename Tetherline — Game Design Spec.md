@@ -4,11 +4,12 @@ Oct 28, 2026 · @ebeetles
 
 ## Overview
 
-Tetherline is a third-person 3D parkour game where speed comes from momentum: you run, wallrun and vault to build it, and a grappling hook turns it into long, smooth swings across hand-built maps. The whole game lives or dies on one feeling — a swing that releases into a wallrun into another swing without ever touching the ground.
+Tetherline is a third-person 3D parkour-fighting game where speed comes from momentum: you run, wallrun and vault to build it, and a grappling hook turns it into long, smooth swings across hand-built maps. A sword turns that speed into damage, so the fastest line through a fight is also the strongest one. The whole game lives or dies on one feeling — a swing that releases into a wallrun into another swing without ever touching the ground, cutting through enemies on the way.
 
 **Pillars**
 
 - **Momentum is the currency.** Speed earned from a swing or a drop is kept, never silently clamped. Good lines are faster lines.
+- **Combat feeds momentum, never stops it.** Hits scale with speed and every attack is a form of a movement state. No arena locks the player in place, and no fight is won by standing still.
 - **Readable, then expressive.** A new player can follow the obvious route; an expert finds shortcuts, skips and chains the level designer barely intended.
 - **Physics you can trust.** The rope behaves the same way every time. Assists exist, but they nudge the player toward the arc they were already going for — they never take control away.
 - **Every map has a verb.** Each level is built around one movement idea (vertical climbing, moving anchors, long-gap swings) so it teaches something new.
@@ -20,7 +21,8 @@ Tetherline is a third-person 3D parkour game where speed comes from momentum: yo
 | Platform | Desktop web browser (keyboard/mouse + gamepad); a packaged desktop app later if wanted |
 | Engine | None. TypeScript in the browser, Three.js for rendering only; game loop, physics, collision, input, audio and level editor written from scratch (see Tech stack) |
 | Maps | 6 handcrafted maps, each 3–6 minutes for a first clear, under 90 seconds for an expert run |
-| Modes | Campaign route, Time Trial with ghosts, Free Roam |
+| Combat | One sword with speed-scaled hits, the hook as a combat tool, 7 enemy types and one boss |
+| Modes | Campaign route, Time Trial with ghosts, Combat Trial, Free Roam |
 | Team | Solo or 2–3 people; one programmer owns the engine layer and movement |
 | Players | Single-player; async multiplayer through leaderboards and ghost replays |
 
@@ -129,9 +131,66 @@ The last line is the whole rope. Snapping p back onto the sphere of radius L kee
 - Moving anchors: the anchor's velocity is added to the projection, so a player on a crane rope inherits the crane's swing.
 - Speed: the soft 35 m/s cap from Core movement applies; collision runs in substeps above 20 m/s so fast movement never tunnels through thin walls.
 
+## Combat
+
+Combat is a layer over movement, not a separate mode of play. It runs alongside the movement state machine (like an upper-body animation over a run), and each attack takes its form from the movement state it starts in. Fights happen along routes: enemies pressure a line, they don't wall it off.
+
+**Rules**
+
+- **Speed is damage.** Damage = base × (1 + speed ÷ 12 m/s), so a hit at 24 m/s does three times a standing hit.
+- **Attacks keep speed.** No attack slows the player except a deliberate heavy strike on the ground.
+- **Few hits, fast respawn.** The player dies in 3 hits, with no health regeneration inside a fight. Death respawns at the last checkpoint in under 1 second, like falling.
+- **Soft aim, no lock-on.** Melee aim assist uses the hook's targeting scoring (screen centre, ahead of velocity, line of sight); there is no hard lock-on.
+
+**Sword moves**
+
+| Move | Trigger | Behaviour | Starting values (tune in playtests) |
+| --- | --- | --- | --- |
+| Slash | Attack on the ground | Quick arc in front; chains up to three | 10 base damage, 2.2 m reach, 100° arc |
+| Heavy strike | Hold attack on the ground | Slower overhead blow that staggers; the only attack that costs speed | 25 base damage, 0.45 s wind-up |
+| Lunge | Attack while sprinting or sliding | Thrust that carries your speed through the target | 15 base damage, keeps 100% of speed |
+| Aerial slash | Attack while airborne | Arc around you; a hit gives a small hop so you can chain enemy to enemy without landing | 12 base damage, +3 m/s up on hit |
+| Plunge | Crouch + attack while airborne | Drive down sword-first; damage grows with fall height, and it cancels hard landings | 10 + 4 per metre fallen |
+| Swing strike | Attack while attached to the hook | Strike at the bottom of the arc, where speed peaks; the release-boost window is also the perfect-hit window | ×1.5 inside the 0.15 s window |
+| Wallrun cut | Attack while wallrunning | Hits enemies standing near the wall as you pass | 12 base damage, 2 m from the wall |
+| Zip strike | Zip at an enemy | Strike on arrival, then pop up over them like a normal zip | 20 base damage |
+| Parry | Parry button | Deflects arrows and staggers melee attackers; a perfect parry keeps speed and redirects it | 0.15 s window, 0.6 s recovery on a miss |
+| Dodge | Slide or roll | The existing slide and roll, with brief invulnerability on the roll | 0.2 s invulnerable |
+
+**The hook in combat**
+
+Enemies are hook targets, scored alongside anchors. Hooking an enemy:
+
+- **Light enemies** (archer, hound, spearman) are pulled toward the player at 20 m/s, arriving staggered.
+- **Heavy enemies** (knight, boss) pull the player to them instead, like a zip.
+- **Shields** are ripped away, leaving the bearer open.
+
+Traversal has priority: when an anchor and an enemy score close, the anchor wins unless the enemy is within 2° of screen centre.
+
+**Enemies**
+
+| Enemy | Health | Role | What it asks of the player |
+| --- | --- | --- | --- |
+| Training dummy | Unlimited | Tutorial | Hit it; floating damage numbers show speed scaling |
+| Archer | 20 | Ranged pressure from walls and roofs | Keep moving, parry arrows, or hook them off their perch |
+| Spearman | 30 | Punishes attacks on foot from the front | Beat them from the air or with a plunge |
+| Shield-bearer | 40 | Blocks frontal attacks | Hook the shield away, or hit from above or behind |
+| Hound | 10 | Fast chaser | Forces you to keep moving |
+| Knight | 80 | Heavy | Staggers only from hits above 15 m/s; build momentum before engaging |
+| Ballista crew | 20 | Area denial | Bolts cut ropes; choose anchors out of their line |
+| Boss: giant or siege engine | — | Set piece | Climb it, grapple onto it, and swing from its moving limbs as anchors |
+
+Enemies are entities in the fixed-step simulation, with a capsule, health and a small state machine (idle, alert, attack, stagger, dead). Their AI is deterministic, so ghosts and replays stay valid. Arrows and bolts are points swept by raycasts each step.
+
+**Feedback**
+
+- **Hit-stop:** the simulation freezes for 40 ms on normal hits and 70 ms on heavy hits and kills.
+- A short camera kick on impact (not a shake), and straw or spark particles.
+- Distinct sounds for swing, impact, parry and kill. The parry sound should be as clear a signal as the rope's taut sound.
+
 ## Camera and controls
 
-The camera sells speed and keeps the next anchor in view; controls keep fire, jump and release on separate fingers so chains never need a hand shift.
+The camera sells speed and keeps the next anchor in view; controls keep fire, jump and release on separate fingers so chains never need a hand shift. Attack and parry sit on the other hand from fire, so a swing strike never needs a hand shift either.
 
 **Camera**
 
@@ -153,6 +212,9 @@ The camera sells speed and keeps the next anchor in view; controls keep fire, ju
 | Zip to anchor | Tap right trigger while attached | Tap left mouse while attached |
 | Reel in / out | Right / left bumper | E / Q |
 | Slide / roll | B / Circle | Left Ctrl |
+| Attack (hold for heavy) | X / Square | Right mouse |
+| Parry | Y / Triangle | F |
+| Plunge | Crouch + attack while airborne | Crouch + attack while airborne |
 | Sprint | Left stick click (toggle) | Left Shift |
 | Restart from checkpoint | Back / Select | R |
 
@@ -179,6 +241,7 @@ A dense block of low rooftops at golden hour: water towers, AC units, laundry li
 - **Teaches:** vault, wallrun between close buildings, first grapples on lamp posts and crane hooks, release timing.
 - **Signature moment:** a crane boom stretched over the plaza. One swing from its hook carries the player across the whole square if they release on time.
 - **Expert line:** a billboard row that allows a wallrun-to-swing chain skipping a third of the loop.
+- **Enemies:** introduces combat. Training dummies along the first stretch, then archers on the rooftops covering the gaps.
 
 ### 2. The Canopy
 
@@ -188,6 +251,7 @@ A forest of giant redwoods with mist hiding the floor. Branches are anchors, tru
 - **Teaches:** swinging upward, reeling in to gain height, wall climb into ledge grab.
 - **Signature moment:** a dead tree falls during the run; the player swings from branches on it while it tips, then leaps off its crown onto the next tier.
 - **Hazard:** falling into the mist resets to the last checkpoint, so it is a soft fail.
+- **Enemies:** archers on the tier platforms and spearmen holding the rope bridges, to teach attacking from the air.
 
 ### 3. Foundry 9
 
@@ -197,6 +261,7 @@ A huge working factory interior: overhead gantry cranes on rails, swinging hook 
 - **Teaches:** moving anchors (the player inherits crane motion), timing a release to the machine's cycle, sliding under closing doors.
 - **Signature moment:** riding a gantry crane's hook the length of the hall, then using its momentum to fling over the molten channel.
 - **Expert line:** grapple surfaces on the roof trusses let fast players skip crane cycles entirely.
+- **Enemies:** shield-bearers on the gantries (teaches the shield yank) and ballista crews whose bolts cut ropes across the hall.
 
 ### 4. Glass Spire
 
@@ -206,6 +271,7 @@ A climb up the outside and inside of a 400 m skyscraper under construction. The 
 - **Teaches:** long wallrun chains, wall jumps between facing walls, short-rope swings on scaffold poles.
 - **Signature moment:** the top floors open into an atrium where the player swings from a hanging sculpture to reach the roof helipad.
 - **Constraint:** low anchor density is deliberate, so each anchor is a reward.
+- **Enemies:** archers on the scaffolding and knights on the interior floors, where you build speed on a wallrun chain before engaging.
 
 ### 5. Skyharbor
 
@@ -215,6 +281,7 @@ Floating islands and moored airships above a cloud sea. Distances are long; the 
 - **Teaches:** long arcs, reeling in at the bottom for speed, release lift, using wind updrafts to recover height.
 - **Signature moment:** a chain of drifting airships, each a moving anchor, crossing a gap with no ground below.
 - **Hazard:** falling into the clouds is a fail; updraft columns are the safety net.
+- **Enemies:** archers on the airships and ballista crews on the islands, so a cut rope means a long fall.
 
 ### 6. Storm Rig
 
@@ -224,42 +291,48 @@ An offshore oil platform at night in a storm. Rain, wind gusts that push the swi
 - **Teaches:** nothing new; it combines every earlier verb at higher speed.
 - **Signature moment:** a wave smashes a walkway mid-run, forcing an improvised swing from the derrick.
 - **Readability:** anchors keep a faint glow so the storm adds pressure without making the route invisible.
+- **Enemies:** every type, ending in the boss on the flare stack.
 
 **Level-building rules (all maps)**
 
 - The main route is always readable from the spot the player is standing on: the next anchor is visible before you need it.
 - Checkpoints every 20–40 seconds of play. Respawn is under 1 second.
 - Hidden collectibles sit on expert lines, rewarding exploration with routes rather than with items behind walls.
+- Enemies sit on or beside the route, never in a closed arena. Every encounter must be clearable without stopping, and the fastest line through it uses the enemies (pulls, zip strikes, aerial hops).
 - Blockouts are built and tested with grey boxes before any art; the movement numbers above must feel good on the blockout first.
 
 ## Modes, progression and scoring
 
-Three modes share the same six maps; progression unlocks new ways to move, never raw stat boosts, so level design stays fair.
+Four modes share the same six maps; progression unlocks new ways to move and fight, never raw stat boosts, so level design stays fair.
 
 **Modes**
 
 - **Campaign route** — play the maps in order with checkpoints. Clearing a map unlocks the next and its Time Trial.
 - **Time Trial** — a fixed start and finish, no checkpoints, a ghost of your best run, and online leaderboards with downloadable ghosts of top runs. Medal times: Bronze (first-clear pace), Silver, Gold, and a hidden Dev time.
+- **Combat Trial** — a fixed route with enemy encounters. Scored on clear time and flow score, with its own ghosts and leaderboards. Enemy AI is deterministic, so ghosts replay against the same fights.
 - **Free Roam** — open map, no timer, collectibles and "line challenges" (e.g. cross the plaza without touching the ground).
 
 **Flow score**
 
 A combo meter rewards chaining moves without touching the ground or stopping.
 
-- Each distinct move in a chain (swing, wallrun, wall jump, vault, zip) adds to a multiplier; repeating the same move twice in a row adds less.
-- Touching the ground at more than run speed keeps the chain for 0.5 s; standing still or a hard landing ends it.
+- Each distinct move in a chain (swing, wallrun, wall jump, vault, zip, and each kind of attack) adds to a multiplier; repeating the same move twice in a row adds less.
+- Kills, parries and pulls add to the chain. A kill at high speed adds more than one at a standstill.
+- Touching the ground at more than run speed keeps the chain for 0.5 s; standing still, a hard landing or taking a hit ends it.
 - Flow score is shown separately from time, so a stylish run and a fast run are both worth chasing.
 
 **Progression (unlocks)**
 
 | Unlock | Earned by | Effect |
 | --- | --- | --- |
-| Zip | Clear Rooftop District | Tap fire to pull straight to the anchor |
+| Zip | Clear Rooftop District | Tap fire to pull straight to the anchor; zip at an enemy for a zip strike |
 | Long rope | Clear The Canopy | Range 40 m → 55 m |
 | Fast reel | Clear Foundry 9 | Reel in 12 → 18 m/s |
+| Shield yank | Clear Foundry 9 | Hooking a shield rips it away |
 | Air dash | Clear Glass Spire | One mid-air dash per airborne period, 8 m/s |
+| Plunge | Clear Glass Spire | Crouch + attack in the air drives down sword-first |
 | Dual hook | Clear Skyharbor | Second hook on the other trigger; two ropes act as two constraints at once |
-| Cosmetics (rope colours, suits, trails) | Medals and collectibles | Visual only |
+| Cosmetics (rope colours, suits, trails, sword skins) | Medals and collectibles | Visual only |
 
 Earlier maps are designed so that every Gold time is reachable without later unlocks; unlocks open new routes on replays.
 
@@ -269,9 +342,9 @@ Earlier maps are designed so that every Gold time is reachable without later unl
 
 - Stylised, high-contrast look (cel-shaded or flat-lit low poly) so anchors and routes read at 30 m/s. Anchors use one consistent glow colour across all maps.
 - Speed lines and a faint radial blur above 20 m/s; wind audio that rises in pitch and volume with speed.
-- Distinct sounds for hook fire, hook hit, rope going taut and release. The "taut" sound is the most important one: it tells the player the swing has started.
+- Distinct sounds for hook fire, hook hit, rope going taut and release. The "taut" sound is the most important one: it tells the player the swing has started. Combat adds swing, impact, parry and kill sounds; the parry is the second most important.
 - Music layers in as the flow chain grows and drops back when it breaks.
-- Animation: procedural lean into swings and wallruns on top of authored clips, so the body always matches the physics.
+- Animation: procedural lean into swings and wallruns on top of authored clips, so the body always matches the physics. Attacks play on an upper-body layer so the legs keep running, swinging or wallrunning underneath.
 
 **Tech stack (no engine)**
 
@@ -283,6 +356,7 @@ Everything a game engine normally provides is written in this codebase. The only
 | Rendering | Flat or toon shaders, speed-line effect, rope mesh, anchor glow | Three.js + GLSL |
 | Collision | Capsule against level primitives (boxes, ramps, cylinders), swept in substeps; raycasts for grapple, walls and ledges; grid spatial hash for lookups | Own code |
 | Physics | Movement state machine, rope constraint, moving anchors | Own code |
+| Combat | Sword hit detection (swept arcs against enemy capsules), enemy AI state machines, projectiles, damage and hit-stop, all inside the fixed step | Own code |
 | Input | Gamepad and keyboard/mouse mapping, remapping, jump buffering | Gamepad API, Pointer Lock API |
 | Audio | Sound triggers, wind loop pitched by speed, layered music | Web Audio API |
 | Levels | Maps stored as JSON lists of primitives, anchors and checkpoints; an in-game editor to place them | Own code |
@@ -314,10 +388,11 @@ A fixed step makes the physics identical on 60 Hz and 144 Hz screens. Ghosts rec
 0. **Engine foundations** — game loop, Three.js renderer setup, input, capsule collision against boxes and ramps, debug panel. Gate: a capsule runs and jumps around a box test room at 120 Hz with no tunnelling at 35 m/s.
 1. **Movement prototype** — run, jump, wallrun, vault and slide in that room. Gate: moving around an empty room feels fun for 10 minutes.
 2. **Grapple prototype** — hook, swing, reel and release in the same room. Gate: swing-to-wallrun-to-swing chains work every time in playtests.
-3. **Level editor and vertical slice** — in-game editor for placing primitives and anchors, then Rooftop District blocked out with camera, placeholder audio and Time Trial with a local ghost. Gate: 5 outside playtesters each want to retry for a better time.
-4. **Content** — remaining five maps blocked out and tuned, then art passes in order.
-5. **Systems** — progression, flow score, online leaderboards and ghost downloads.
-6. **Polish and release** — 60 fps on a mid-range laptop with integrated graphics, accessibility settings, remapping, bug fixing.
+3. **Combat prototype** — slash, aerial slash, plunge and swing strike against training dummies in the test room, then an archer and a spearman with deterministic AI, player health and death. Starts only after the milestone 2 gate. Gate: hitting things at speed feels better than hitting them standing still, and a short encounter can be cleared without breaking a movement chain.
+4. **Level editor and vertical slice** — in-game editor for placing primitives, anchors and enemies, then Rooftop District blocked out with camera, placeholder audio, its first enemy encounters and Time Trial with a local ghost. Gate: 5 outside playtesters each want to retry for a better time.
+5. **Content** — remaining five maps blocked out and tuned with their enemies, the rest of the roster and the boss, then art passes in order.
+6. **Systems** — progression, flow score, Combat Trial, online leaderboards and ghost downloads.
+7. **Polish and release** — 60 fps on a mid-range laptop with integrated graphics, accessibility settings, remapping, bug fixing.
 
 **Risks**
 
@@ -327,7 +402,9 @@ A fixed step makes the physics identical on 60 Hz and 144 Hz screens. Ghosts rec
 - **Browser performance.** Mitigation: merge static level geometry into a few meshes, instance repeated props, and keep shaders simple; profile from milestone 0.
 - **Tools take time too.** Without an engine editor, the level editor is real work. Mitigation: start with JSON edited by hand plus live reload, and grow the editor only as maps need it.
 - **Players get lost at speed.** Mitigation: the readability rules in Level maps and playtests that track where people stall.
-- **Scope.** Six maps is a lot for a small team. Fallback: ship four (Rooftop, Canopy, Foundry, Skyharbor) and add the rest as updates.
+- **Combat swallows the movement game.** Fights that reward standing still would undo every pillar. Mitigation: combat starts only after the movement gate, every attack keeps speed except the heavy strike, no closed arenas, and playtests track how often players stop moving during encounters.
+- **Combat doubles the content.** Every enemy needs AI, animation, sounds and tuning. Mitigation: grey capsules with swords until the prototype gate passes, and enemies reuse our collision and targeting code instead of new systems.
+- **Scope.** Six maps is a lot for a small team. Fallback: ship four (Rooftop, Canopy, Foundry, Skyharbor) and add the rest as updates. A combat fallback: ship four enemy types (archer, spearman, shield-bearer, knight) and the boss later.
 
 **Open questions**
 
@@ -335,5 +412,9 @@ A fixed step makes the physics identical on 60 Hz and 144 Hz screens. Ghosts rec
 - [ ] Is Three.js acceptable as a renderer, or should rendering be raw WebGL too?
 - [ ] Should grapple surfaces be widely available (more freedom) or limited to anchors (tighter level design)?
 - [ ] Is the dual hook in scope for v1, or a post-launch update?
-- [ ] Is there a story or character, or is it a pure movement game?
+- [ ] Is there a story or character? With swords and enemies it is no longer a pure movement game, so who are you fighting, and why?
+- [ ] Is combat in every map, or only in Combat Trials and the campaign, with Time Trials kept enemy-free?
+- [ ] One-hit deaths for a precision feel, or the 3-hit health above?
+- [ ] Should a hook aimed at a crowd prefer anchors or enemies, or should pulling enemies use its own button?
+- [ ] Setting: the test room and the enemy roster are medieval, but the six maps are written as a modern city, factory and oil rig. Re-theme the maps, or re-skin the enemies?
 - [ ] Does Free Roam need a hub world connecting the maps?
