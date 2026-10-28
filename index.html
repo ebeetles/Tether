@@ -4,78 +4,170 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tetherline</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --ink: #f5f7fa;
-        --panel: rgba(17, 22, 30, 0.86);
-        --accent: #29e3ff;
-        --rope: #ff6a3d;
+        --display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+        --text: 'IM Fell English', Georgia, 'Times New Roman', serif;
+        --parchment: #efe0bd;
+        --parchment-dark: #d6bf8c;
+        --ink: #2b1d12;
+        --ink-soft: #5b4128;
+        --blood: #7a1c1c;
+        --gold: #d9a640;
+        --gold-hi: #f6d68a;
+        --bronze: #8a5a2b;
+        --leather: #1e1611;
+        --rune: #4ff0ff;
+        --light: #f7ecd4;
       }
       * { box-sizing: border-box; }
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #c7d3df; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #2a1d24; color: var(--light); font: 15px/1.4 var(--text); }
       #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
       #speedlines { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+      #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 58%, rgba(28, 10, 4, 0.5) 100%); }
 
-      #crosshair { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1.5px rgba(0,0,0,.45); pointer-events: none; }
-      #reticle { position: fixed; left: 0; top: 0; width: 34px; height: 34px; border: 2.5px solid var(--accent); border-radius: 50%; box-shadow: 0 0 10px var(--accent); pointer-events: none; display: none; }
-      #reticle[data-kind="surface"] { border-radius: 4px; border-style: dashed; border-color: #ffd166; box-shadow: none; width: 22px; height: 22px; }
+      /* ---- aim ---- */
+      #crosshair { position: fixed; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; transform: rotate(45deg); background: var(--gold-hi); box-shadow: 0 0 0 1.5px rgba(30, 14, 4, 0.7); pointer-events: none; }
+      #reticle { position: fixed; left: 0; top: 0; width: 46px; height: 46px; pointer-events: none; display: none; }
+      #reticle svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+      #reticle .anchor { color: var(--rune); filter: drop-shadow(0 0 4px var(--rune)); animation: spin 6s linear infinite; }
+      #reticle .surface { color: var(--gold-hi); filter: drop-shadow(0 0 2px rgba(0,0,0,.8)); display: none; }
+      #reticle[data-kind="surface"] .anchor { display: none; }
+      #reticle[data-kind="surface"] .surface { display: block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
 
-      #hud { position: fixed; left: 18px; bottom: 16px; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
-      #hud-speed { font-size: 34px; font-weight: 700; }
-      #hud-speed::after { content: ' m/s'; font-size: 13px; font-weight: 400; opacity: .8; }
-      #hud-state { text-transform: uppercase; letter-spacing: .12em; opacity: .85; }
-      #hud-debug { position: fixed; left: 12px; top: 12px; white-space: pre; background: var(--panel); padding: 8px 10px; border-radius: 6px; display: none; pointer-events: none; }
+      /* ---- speed medallion and state ribbon ---- */
+      #hud { position: fixed; left: 22px; bottom: 18px; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+      .medallion { position: relative; width: 116px; height: 116px; filter: drop-shadow(0 3px 6px rgba(0,0,0,.55)); }
+      .medallion svg { position: absolute; inset: 0; }
+      .speed { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; font-family: var(--display); color: var(--gold-hi); text-shadow: 0 1px 0 #3a210c, 0 0 8px rgba(0,0,0,.6); }
+      #hud-speed { font-size: 32px; font-weight: 700; line-height: 1; }
+      .speed small { font-size: 10px; letter-spacing: .2em; color: #e9cf95; margin-top: 3px; }
+      .ribbon { position: relative; margin-top: -10px; padding: 4px 22px 5px; background: linear-gradient(#8e2424, var(--blood)); color: var(--light); font: 700 11px/1 var(--display); letter-spacing: .22em; text-transform: uppercase; box-shadow: 0 2px 4px rgba(0,0,0,.5); }
+      .ribbon::before, .ribbon::after { content: ''; position: absolute; top: 4px; border: 10px solid #5e1414; z-index: -1; }
+      .ribbon::before { left: -12px; border-left-color: transparent; }
+      .ribbon::after { right: -12px; border-right-color: transparent; }
 
-      #overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(15, 20, 28, .55); cursor: pointer; }
-      #overlay.hidden { display: none; }
-      #hint { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); padding: 6px 12px; border-radius: 6px; pointer-events: none; opacity: .9; }
+      #toast { position: fixed; top: 14%; left: 50%; transform: translate(-50%, -8px); opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; font-family: var(--display); color: var(--gold-hi); text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+      #toast.show { opacity: 1; transform: translate(-50%, 0); }
+      #toast .t1 { font-size: 26px; font-weight: 700; letter-spacing: .12em; }
+      #toast .t2 { font: italic 15px var(--text); color: var(--light); margin-top: 2px; }
+      #toast .flourish { color: var(--rune); font-size: 14px; letter-spacing: .5em; }
+
+      #hint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); padding: 6px 16px; pointer-events: none; color: var(--ink); background: var(--parchment); border: 1px solid var(--parchment-dark); box-shadow: 0 2px 8px rgba(0,0,0,.45); font-style: italic; border-radius: 2px; }
       #hint.hidden { display: none; }
-      .card { background: var(--panel); padding: 22px 26px; border-radius: 10px; max-width: 520px; width: calc(100% - 32px); }
-      .card h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: .04em; }
-      .card h1 span { color: var(--rope); }
-      .card p { margin: 0 0 14px; opacity: .8; }
-      .keys { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; }
-      .keys b { color: var(--accent); font-weight: 600; }
 
-      #debug { position: fixed; right: 0; top: 0; bottom: 0; width: 300px; background: var(--panel); overflow-y: auto; padding: 10px 12px; transform: translateX(100%); transition: transform .15s; }
+      #hud-debug { position: fixed; left: 14px; top: 14px; white-space: pre; padding: 9px 12px; border-radius: 3px; display: none; pointer-events: none; font: 12px/1.45 ui-monospace, Menlo, monospace; color: #f3e3c3; background: rgba(30, 22, 17, .88); border: 1px solid rgba(217, 166, 64, .5); }
+
+      /* ---- title scroll ---- */
+      #overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; cursor: pointer; background: radial-gradient(ellipse at center, rgba(40, 18, 24, .35), rgba(15, 6, 10, .78)); }
+      #overlay.hidden { display: none; }
+      .scroll { position: relative; width: min(560px, 100%); padding: 34px 40px 30px; color: var(--ink); text-align: center;
+        background:
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .22 0 0 0 0 .08 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+          radial-gradient(ellipse at 50% 40%, #f6ead0 0%, var(--parchment) 55%, var(--parchment-dark) 100%);
+        box-shadow: inset 0 0 40px rgba(110, 66, 22, .45), inset 0 0 4px rgba(80, 40, 10, .6), 0 18px 50px rgba(0, 0, 0, .6); border-radius: 3px; }
+      .scroll::before, .scroll::after { content: ''; position: absolute; left: -14px; right: -14px; height: 22px; border-radius: 11px; background: linear-gradient(#c49a5c, #8a5f2c 45%, #5e3c18); box-shadow: 0 3px 6px rgba(0,0,0,.45); }
+      .scroll::before { top: -11px; }
+      .scroll::after { bottom: -11px; }
+      .crest { font-size: 30px; color: var(--blood); line-height: 1; }
+      .scroll h1 { margin: 4px 0 0; font: 900 46px/1 var(--display); letter-spacing: .08em; color: var(--blood); text-shadow: 0 1px 0 rgba(255,255,255,.4); }
+      .sub { font: italic 18px var(--text); color: var(--ink-soft); margin-top: 6px; }
+      .rule { display: flex; align-items: center; gap: 10px; margin: 14px 0 12px; color: var(--bronze); }
+      .rule::before, .rule::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--bronze), transparent); }
+      .lede { margin: 0 0 14px; font-size: 16px; }
+      .lede b { font-family: var(--display); letter-spacing: .06em; color: var(--blood); }
+      .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; text-align: left; margin: 0 auto; max-width: 430px; }
+      .keys dt { justify-self: end; white-space: nowrap; }
+      .keys dd { margin: 0; align-self: center; }
+      kbd { display: inline-block; min-width: 22px; padding: 2px 6px; margin-left: 3px; text-align: center; font: 700 11px/1.5 var(--display); color: var(--gold-hi); background: linear-gradient(#4a3a2e, #241a14); border: 1px solid #8a6d3b; border-radius: 3px; box-shadow: 0 2px 0 #120c08, inset 0 1px 0 rgba(255,255,255,.12); }
+      .foot { margin-top: 16px; font-style: italic; font-size: 13px; color: var(--ink-soft); }
+
+      /* ---- tuning panel ---- */
+      #debug { position: fixed; right: 0; top: 0; bottom: 0; width: 310px; overflow-y: auto; padding: 12px 14px; transform: translateX(100%); transition: transform .15s; background: linear-gradient(90deg, #15100c, var(--leather)); border-left: 2px solid var(--gold); color: #f0e1c2; font: 13px var(--text); box-shadow: -6px 0 18px rgba(0,0,0,.5); }
       #debug.open { transform: none; }
-      #debug details { border-top: 1px solid rgba(255,255,255,.1); padding: 4px 0; }
-      #debug summary { cursor: pointer; color: var(--accent); padding: 2px 0; }
-      .dbg-head { display: grid; gap: 6px; margin-bottom: 8px; }
+      #debug strong { font: 700 16px var(--display); letter-spacing: .14em; color: var(--gold-hi); }
+      #debug details { border-top: 1px solid rgba(217, 166, 64, .25); padding: 4px 0; }
+      #debug summary { cursor: pointer; padding: 3px 0; font: 700 12px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+      .dbg-head { display: grid; gap: 7px; margin-bottom: 10px; }
       .dbg-row { display: flex; gap: 6px; align-items: center; }
-      .dbg-row input[type=range] { flex: 1; }
+      .dbg-row input[type=range] { flex: 1; accent-color: var(--gold); }
       .dbg-check { display: flex; gap: 6px; align-items: center; }
+      .dbg-check input { accent-color: var(--gold); }
       .dbg-field { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 1px 0 1px 8px; }
-      .dbg-field input[type=number] { width: 84px; background: #0d1117; color: var(--ink); border: 1px solid #30363d; border-radius: 4px; padding: 2px 4px; font: inherit; }
-      .dbg-field.changed span { color: #ffd166; }
-      #debug button { background: #21262d; color: var(--ink); border: 1px solid #30363d; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }
+      .dbg-field input[type=number] { width: 86px; background: #0e0a07; color: #f3e3c3; border: 1px solid #5a4424; border-radius: 3px; padding: 2px 5px; font: 12px ui-monospace, Menlo, monospace; }
+      .dbg-field input[type=checkbox] { accent-color: var(--gold); }
+      .dbg-field.changed span { color: var(--gold-hi); font-style: italic; }
+      #debug button { background: linear-gradient(#4a3a2e, #241a14); color: var(--gold-hi); border: 1px solid #8a6d3b; border-radius: 3px; padding: 4px 9px; font: 700 11px var(--display); letter-spacing: .06em; cursor: pointer; }
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
     <canvas id="speedlines"></canvas>
+    <div id="vignette"></div>
     <div id="crosshair"></div>
-    <div id="reticle"></div>
-    <div id="hud"><div id="hud-speed">0.0</div><div id="hud-state">air</div></div>
+    <div id="reticle">
+      <svg class="anchor" viewBox="-23 -23 46 46" fill="none" stroke="currentColor">
+        <circle r="17" stroke-width="2" stroke-dasharray="6 4.7" />
+        <circle r="21" stroke-width="1" opacity=".6" />
+        <path d="M0-23v7M0 23v-7M-23 0h7M23 0h-7" stroke-width="2.4" stroke-linecap="round" />
+      </svg>
+      <svg class="surface" viewBox="-23 -23 46 46" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square">
+        <path d="M-14-8v-6h6M14-8v-6h-6M-14 8v6h6M14 8v6h-6" />
+      </svg>
+    </div>
+    <div id="hud">
+      <div class="medallion">
+        <svg viewBox="0 0 116 116">
+          <defs>
+            <radialGradient id="face" cx="50%" cy="40%" r="60%">
+              <stop offset="0" stop-color="#4a3424" />
+              <stop offset="1" stop-color="#1c120c" />
+            </radialGradient>
+            <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#f0c770" />
+              <stop offset=".5" stop-color="#a8702e" />
+              <stop offset="1" stop-color="#5e3a14" />
+            </linearGradient>
+          </defs>
+          <circle cx="58" cy="58" r="55" fill="url(#rim)" />
+          <circle cx="58" cy="58" r="49" fill="url(#face)" stroke="#2a1a0c" stroke-width="1.5" />
+          <circle cx="58" cy="58" r="42" fill="none" stroke="rgba(246,214,138,.16)" stroke-width="6"
+            stroke-dasharray="197.9 263.9" transform="rotate(135 58 58)" />
+          <circle id="gauge" cx="58" cy="58" r="42" fill="none" stroke="#f6d68a" stroke-width="6" stroke-linecap="round"
+            stroke-dasharray="0 263.9" transform="rotate(135 58 58)" />
+        </svg>
+        <div class="speed"><span id="hud-speed">0</span><small>M / S</small></div>
+      </div>
+      <div class="ribbon"><span id="hud-state">Afoot</span></div>
+    </div>
+    <div id="toast"><div class="flourish">ᚱ ✦ ᚱ</div><div class="t1"></div><div class="t2"></div></div>
     <div id="hud-debug"></div>
     <div id="debug"></div>
-    <div id="hint" class="hidden">Mouse capture isn't available here, so move the mouse to aim · Esc for the menu</div>
+    <div id="hint" class="hidden">The mouse cannot be captured here, so move it to aim · Esc for the menu</div>
     <div id="overlay">
-      <div class="card">
-        <h1>TETHER<span>LINE</span> · test room</h1>
-        <p>Click anywhere to play. Esc brings this menu back.</p>
-        <div class="keys">
-          <b>WASD</b><span>move</span>
-          <b>Mouse</b><span>aim</span>
-          <b>Space</b><span>jump · wall jump · mantle (on a ledge)</span>
-          <b>Left mouse</b><span>hold to grapple, release to let go</span>
-          <b>Release + click</b><span>zip to the anchor (double-tap)</span>
-          <b>E / Q</b><span>reel in / out</span>
-          <b>Shift</b><span>sprint</span>
-          <b>C / L-Ctrl</b><span>slide · roll</span>
-          <b>R</b><span>restart from checkpoint</span>
-          <b>`</b><span>tuning panel · P pause · . step</span>
-        </div>
+      <div class="scroll">
+        <div class="crest">⚜</div>
+        <h1>TETHERLINE</h1>
+        <div class="sub">The Proving Grounds</div>
+        <div class="rule">❦</div>
+        <p class="lede"><b>Click</b> anywhere to begin. <b>Esc</b> returns to this page.</p>
+        <dl class="keys">
+          <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Run</dd>
+          <dt><kbd>Mouse</kbd></dt><dd>Aim</dd>
+          <dt><kbd>Space</kbd></dt><dd>Jump, wall jump, mantle a ledge</dd>
+          <dt><kbd>Left click</kbd></dt><dd>Hold to grapple, let go to release</dd>
+          <dt><kbd>Release</kbd><kbd>Click</kbd></dt><dd>Zip to the anchor</dd>
+          <dt><kbd>E</kbd><kbd>Q</kbd></dt><dd>Reel in, reel out</dd>
+          <dt><kbd>Shift</kbd></dt><dd>Sprint</dd>
+          <dt><kbd>C</kbd><kbd>Ctrl</kbd></dt><dd>Slide, roll on landing</dd>
+          <dt><kbd>R</kbd></dt><dd>Return to the last waystone</dd>
+          <dt><kbd>`</kbd></dt><dd>Tuning panel (<kbd>P</kbd> pause, <kbd>.</kbd> step)</dd>
+        </dl>
+        <div class="foot">Glowing rings, lanterns and bells take the hook. Beams beneath bridges and decks do too.</div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

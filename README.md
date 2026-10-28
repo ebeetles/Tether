@@ -2,13 +2,14 @@
 
 Third-person momentum parkour with a grappling hook. See [the design spec](Tetherline%20—%20Game%20Design%20Spec.md).
 
-This is milestones 0–2 of the spec: engine foundations, the movement prototype and the grapple prototype, in a grey-box test room. TypeScript in the browser; Three.js is used only to render. The game loop, collision, physics, input and audio are our own code.
+This is milestones 0–2 of the spec: engine foundations, the movement prototype and the grapple prototype. The test room is dressed as a medieval castle courtyard at sunset. TypeScript in the browser; Three.js is used only to render. The game loop, collision, physics, input and audio are our own code.
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
 npm test         # headless physics and collision suite
 npm run build    # typecheck + production build
+node tools/build-testroom.mjs   # regenerate the test room map
 ```
 
 ## Controls
@@ -37,15 +38,19 @@ src/
     grapple.ts         targeting, rope constraint (projection), reel, zip, assists
     camera.ts          spring-arm camera; lives in the sim because its aim drives targeting
     level.ts           JSON level format, moving anchors
-  render/              Three.js renderer, grid/toon shader, Verlet rope visual, HUD
+  render/              Three.js renderer: sunset sky and fog (sky.ts), procedural textures,
+                       merged static geometry and scenery (decor.ts), props, Verlet rope, HUD
   input/               keyboard/mouse (Pointer Lock) + gamepad → one InputFrame per step
   audio/               synthesized placeholder sounds + speed-pitched wind
   debug/panel.ts       live tuning for every spec number (persists in localStorage)
   levels/testroom.json the test room; edits hot-reload in place
+tools/build-testroom.mjs  generates testroom.json from helpers (houses, towers, gallows, scaffolds)
 tests/                 collision, movement and swing suites (vitest)
 ```
 
-Every number in the spec is in `src/config.ts` and can be changed live from the tuning panel.
+Every number in the spec is in `src/config.ts` and can be changed live from the tuning panel. The panel's graphics group toggles shadows, bloom and torch lights.
+
+Levels can carry `decor` (scenery the simulation ignores: roofs, banners, torches, trees, windmill sails), a `mat` per primitive (stone, plaster, roof, wood, flagstone…), `hidden` colliders, and an `environment` block that sets the sun. All textures are painted on canvases at startup, so the game ships no image files.
 
 ## Choices the spec left open
 

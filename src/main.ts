@@ -94,6 +94,7 @@ function frame(now: number): void {
   }
   for (const e of sim.events) {
     renderer.onEvent(e, sim);
+    hud.onEvent(e);
     audio.play(e);
   }
   sim.events.length = 0;
@@ -106,7 +107,7 @@ function frame(now: number): void {
 requestAnimationFrame(frame);
 
 // Dev-only handle for poking the sim from the console.
-if (import.meta.env.DEV) Object.assign(window, { tetherline: { sim, renderer, input, debug } });
+if (import.meta.env.DEV) Object.assign(window, { tetherline: { sim, renderer, input, debug, hud } });
 
 // Live reload: edit the level JSON and the map rebuilds in place.
 if (import.meta.hot) {

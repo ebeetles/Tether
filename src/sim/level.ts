@@ -4,11 +4,43 @@ import { DEG, Vec3 } from '../math/vec3';
 
 // Maps are JSON lists of primitives, anchors and checkpoints (spec: Tech stack › Levels).
 
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
+
+/** Visual-only fields on a primitive: material name, tint, and `hidden` for invisible collision. */
+interface PrimitiveLook {
+  tags?: string[];
+  mat?: string;
+  color?: string;
+  hidden?: boolean;
+}
 
 export type PrimitiveData =
-  | { type: 'box'; pos: V3; size: V3; rot?: V3; tags?: string[]; color?: string }
-  | { type: 'cylinder'; pos: V3; radius: number; height: number; tags?: string[]; color?: string };
+  | ({ type: 'box'; pos: V3; size: V3; rot?: V3 } & PrimitiveLook)
+  | ({ type: 'cylinder'; pos: V3; radius: number; height: number } & PrimitiveLook);
+
+/** Non-colliding scenery. The simulation ignores it; the renderer builds it. */
+export type DecorData =
+  | { type: 'box'; pos: V3; size: V3; rot?: V3; mat?: string; color?: string }
+  | { type: 'cylinder'; pos: V3; radius: number; height: number; mat?: string; color?: string; radiusTop?: number }
+  /** Cone standing on `pos` (tower roofs, distant hills). */
+  | { type: 'cone'; pos: V3; radius: number; height: number; mat?: string; color?: string; segments?: number }
+  /** Triangular prism filling a gable end under a roof; ridge runs along local z after `yaw`. */
+  | { type: 'gable'; pos: V3; width: number; height: number; depth: number; yaw?: number; mat?: string }
+  /** Hanging cloth banner; `pos` is the top centre. */
+  | { type: 'banner'; pos: V3; size: [number, number]; yaw?: number; color?: string; emblem?: string }
+  /** Flag on a pole standing on `pos`. */
+  | { type: 'flag'; pos: V3; height: number; color?: string; yaw?: number }
+  | { type: 'torch'; pos: V3; light?: boolean }
+  | { type: 'tree'; pos: V3; height: number; radius?: number; kind?: 'oak' | 'pine' }
+  /** Windmill sails turning in step with `wheel` anchors that share the hub, yaw and period. */
+  | { type: 'sails'; pos: V3; radius: number; period: number; yaw?: number }
+  | { type: 'water'; pos: V3; radius: number };
+
+export interface EnvironmentData {
+  /** Sun direction as compass azimuth and elevation, degrees. */
+  sunAzimuth?: number;
+  sunElevation?: number;
+}
 
 export type MotionData =
   /** Swings about `pivot` in a vertical plane; `pos` is the rest position below the pivot. */
@@ -16,13 +48,16 @@ export type MotionData =
   /** Eases back and forth between `pos` and `to`. */
   | { type: 'linear'; to: V3; period: number }
   /** Circles `center` at the radius given by `pos`. */
-  | { type: 'circle'; center: V3; period: number };
+  | { type: 'circle'; center: V3; period: number }
+  /** Turns in a vertical plane about `center` (windmill sails); the plane faces `yaw`. */
+  | { type: 'wheel'; center: V3; period: number; yaw?: number };
 
 export interface AnchorData {
   pos: V3;
   motion?: MotionData;
   /** Render a support cable this many metres straight up from the anchor. */
   cable?: number;
+  look?: 'ring' | 'lantern' | 'bell' | 'hook';
 }
 
 export interface CheckpointData {
@@ -38,6 +73,8 @@ export interface LevelData {
   primitives: PrimitiveData[];
   anchors: AnchorData[];
   checkpoints?: CheckpointData[];
+  decor?: DecorData[];
+  environment?: EnvironmentData;
 }
 
 export class Anchor {
@@ -91,6 +128,17 @@ export class Anchor {
         const r = Math.hypot(dx, dz);
         const a0 = Math.atan2(dz, dx);
         return out.set(cx + Math.cos(a0 + phase) * r, base[1], cz + Math.sin(a0 + phase) * r);
+      }
+      case 'wheel': {
+        const [cx, cy, cz] = m.center;
+        const yaw = (m.yaw ?? 0) * DEG;
+        // In-plane horizontal axis (right vector for this yaw) and up.
+        const ax = Math.cos(yaw), az = -Math.sin(yaw);
+        const u = (base[0] - cx) * ax + (base[2] - cz) * az;
+        const v = base[1] - cy;
+        const r = Math.hypot(u, v);
+        const a = Math.atan2(v, u) + phase;
+        return out.set(cx + ax * Math.cos(a) * r, cy + Math.sin(a) * r, cz + az * Math.cos(a) * r);
       }
     }
   }

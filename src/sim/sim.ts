@@ -45,6 +45,8 @@ export class Sim {
     this.respawnPos.copy(level.spawn);
     this.respawnYaw = level.spawnYaw;
     this.respawn();
+    // Attune the waystone you start on without announcing it.
+    this.checkVolumes();
     this.events.length = 0;
   }
 

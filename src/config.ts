@@ -144,6 +144,13 @@ export const DEFAULT_TUNING = {
     mouseSensitivity: 0.0022,
     padSensitivity: 3,
   },
+  graphics: {
+    bloom: true,
+    bloomStrength: 0.55,
+    shadows: true,
+    torchLights: true,
+    exposure: 1.15,
+  },
 };
 
 export type Tuning = typeof DEFAULT_TUNING;

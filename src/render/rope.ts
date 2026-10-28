@@ -12,22 +12,23 @@ export class RopeView {
   private readonly pts: THREE.Vector3[] = [];
   private readonly old: THREE.Vector3[] = [];
   private readonly mesh: THREE.InstancedMesh;
-  private readonly head: THREE.Mesh;
+  private readonly head: THREE.Object3D;
   private readonly m = new THREE.Matrix4();
   private readonly q = new THREE.Quaternion();
   private readonly s = new THREE.Vector3();
   private readonly d = new THREE.Vector3();
   private active = false;
 
-  constructor(color = '#ff6a3d') {
+  constructor(head: THREE.Object3D, material: THREE.Material) {
     for (let i = 0; i <= SEGMENTS; i++) {
       this.pts.push(new THREE.Vector3());
       this.old.push(new THREE.Vector3());
     }
-    const geo = new THREE.CylinderGeometry(0.03, 0.03, 1, 6, 1, true).translate(0, 0.5, 0);
-    this.mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color }), SEGMENTS);
+    const geo = new THREE.CylinderGeometry(0.035, 0.035, 1, 6, 1, true).translate(0, 0.5, 0);
+    this.mesh = new THREE.InstancedMesh(geo, material, SEGMENTS);
     this.mesh.frustumCulled = false;
-    this.head = new THREE.Mesh(new THREE.OctahedronGeometry(0.14), new THREE.MeshBasicMaterial({ color: '#222831' }));
+    this.mesh.castShadow = true;
+    this.head = head;
     this.group.add(this.mesh, this.head);
     this.group.visible = false;
   }
@@ -81,6 +82,9 @@ export class RopeView {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.head.position.copy(head);
+    // Point the grapnel away from the rope.
+    this.d.subVectors(this.pts[SEGMENTS], this.pts[SEGMENTS - 1]);
+    if (this.d.lengthSq() > 1e-8) this.head.quaternion.setFromUnitVectors(UP, this.d.normalize());
   }
 
   hide(): void {
